@@ -149,6 +149,7 @@ class SqlLabRestApi(BaseSupersetApi):
 
     @expose("/estimate/", methods=("POST",))
     @protect()
+    @permission_name("estimate_query_cost")
     @statsd_metrics
     @requires_json
     @event_logger.log_this_with_context(
