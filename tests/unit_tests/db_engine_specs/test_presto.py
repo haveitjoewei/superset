@@ -1411,6 +1411,45 @@ def test_partition_query_escapes_single_quote_in_filter_value(
     assert "'2024-01-01' UNION SELECT" not in sql
 
 
+def test_partition_query_quotes_identifiers(mocker: MockerFixture) -> None:
+    """
+    ``_partition_query`` must quote schema, table and column identifiers so a
+    caller-supplied name (e.g. via the ``latest_partition`` Jinja macro) cannot
+    break out of the identifier and inject SQL.
+    """
+    from superset.db_engine_specs.presto import PrestoBaseEngineSpec
+
+    database: mock.MagicMock = mocker.MagicMock()
+    database.get_extra.return_value = {}
+
+    evil_table = 'x" UNION SELECT secret FROM other_table--'
+    sql: str = PrestoBaseEngineSpec._partition_query(
+        Table(evil_table, 'my"schema'),
+        indexes=[{"column_names": ["ds"]}],
+        database=database,
+        limit=1,
+        order_by=[('ds" DESC; DROP TABLE t--', True)],
+        filters={'ds"': "2024-01-01"},
+    )
+
+    assert (
+        'FROM "my""schema"."x"" UNION SELECT secret FROM other_table--$partitions"'
+        in sql
+    )
+    assert 'WHERE "ds""" = \'2024-01-01\'' in sql
+    assert 'ORDER BY "ds"" DESC; DROP TABLE t--" DESC' in sql
+    assert 'FROM "my"schema"' not in sql
+
+    # legacy (pre-0.199) SHOW PARTITIONS syntax
+    database.get_extra.return_value = {"version": "0.100"}
+    sql = PrestoBaseEngineSpec._partition_query(
+        Table("my_table", "my_schema"),
+        indexes=[],
+        database=database,
+    )
+    assert 'SHOW PARTITIONS FROM "my_schema"."my_table"' in sql
+
+
 def test_mask_encrypted_extra() -> None:
     """
     The sensitive `auth_params` values are masked, while `auth_method` and
