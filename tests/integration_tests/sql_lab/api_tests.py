@@ -209,6 +209,28 @@ class TestSqlLabApi(SupersetTestCase):
         db.session.delete(new_role)
         db.session.commit()
 
+    def test_estimate_access_denied(self):
+        new_role = Role(name="Dummy Role", permissions=[])
+        db.session.add(new_role)
+        db.session.commit()
+        unauth_user = self.create_user(
+            "unauth_user2",
+            "password",
+            "Dummy Role",
+            email="unauth_user2@superset.org",
+        )
+        self.login(username="unauth_user2", password="password")  # noqa: S106
+        rv = self.client.post(
+            "/api/v1/sqllab/estimate/",
+            json={"database_id": 1, "sql": "SELECT 1"},
+        )
+
+        assert rv.status_code == 403
+
+        db.session.delete(unauth_user)
+        db.session.delete(new_role)
+        db.session.commit()
+
     def test_estimate_required_params(self):
         self.login(ADMIN_USERNAME)
 
