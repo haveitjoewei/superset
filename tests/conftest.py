@@ -26,11 +26,13 @@
 from __future__ import annotations
 
 import functools
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any, Callable, TYPE_CHECKING
 from unittest.mock import MagicMock, Mock, PropertyMock
 
 from flask import current_app
-from pytest import fixture  # noqa: PT013
+from pytest import fixture, MonkeyPatch  # noqa: PT013
 
 from tests.example_data.data_loading.pandas.pandas_data_loader import PandasDataLoader
 from tests.example_data.data_loading.pandas.pands_data_loading_conf import (
@@ -112,6 +114,31 @@ def data_loader(
     )
 
 
+_MISSING = object()
+
+
+@contextmanager
+def config_overrides(overrides: dict[str, Any]) -> Iterator[None]:
+    """
+    Temporarily override keys in ``current_app.config``.
+
+    Every key is restored to its previous value (or removed if it did not
+    exist) when the block exits, even if the body raises, so that one test
+    can never leak config state into the next.
+    """
+    config = current_app.config
+    backup = {key: config.get(key, _MISSING) for key in overrides}
+    try:
+        config.update(overrides)
+        yield
+    finally:
+        for key, value in backup.items():
+            if value is _MISSING:
+                config.pop(key, None)
+            else:
+                config[key] = value
+
+
 def with_config(override_config: dict[str, Any]):
     """
     Use this decorator to mock specific config keys.
@@ -127,16 +154,33 @@ def with_config(override_config: dict[str, Any]):
     """
 
     def decorate(test_fn):
-        config_backup = {}
-
         def wrapper(*args, **kwargs):
-            for key, value in override_config.items():
-                config_backup[key] = current_app.config[key]
-                current_app.config[key] = value
-            test_fn(*args, **kwargs)
-            for key, value in config_backup.items():
-                current_app.config[key] = value
+            with config_overrides(override_config):
+                return test_fn(*args, **kwargs)
 
         return functools.update_wrapper(wrapper, test_fn)
 
     return decorate
+
+
+@fixture
+def override_config(monkeypatch: MonkeyPatch) -> Callable[..., None]:
+    """
+    Override ``current_app.config`` keys for the duration of a single test.
+
+    Changes are undone automatically at teardown, so tests that need to tweak
+    configuration do not have to hand-roll ``try``/``finally`` blocks and can
+    never leak state to other tests, regardless of pass/fail or run order.
+
+    Usage:
+
+        def test_something(override_config):
+            override_config(SOME_CONFIG=True, OTHER_CONFIG="x")
+            ...
+    """
+
+    def _override(**overrides: Any) -> None:
+        for key, value in overrides.items():
+            monkeypatch.setitem(current_app.config, key, value)
+
+    return _override
