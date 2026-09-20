@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Any
+from typing import Any, Callable
 from unittest.mock import MagicMock, patch
 
 import pytest
-from flask import g
+from flask import current_app, g
 from flask_appbuilder.const import (
     AUTH_DB,
     AUTH_LDAP,
@@ -40,16 +40,18 @@ def _get_bootstrap(user_id: int = 1) -> dict[str, Any]:
         return cached_common_bootstrap_data(user_id=user_id, locale=None)
 
 
-def test_bootstrap_saml_providers(app_context: None) -> None:
+def test_bootstrap_saml_providers(
+    app_context: None, override_config: Callable[..., None]
+) -> None:
     """SAML providers are included in bootstrap data."""
-    from flask import current_app
-
-    current_app.config["AUTH_TYPE"] = AUTH_SAML
-    current_app.config["AUTH_USER_REGISTRATION"] = False
-    current_app.config["SAML_PROVIDERS"] = [
-        {"name": "okta", "icon": "fa-okta"},
-        {"name": "entra_id", "icon": "fa-microsoft"},
-    ]
+    override_config(
+        AUTH_TYPE=AUTH_SAML,
+        AUTH_USER_REGISTRATION=False,
+        SAML_PROVIDERS=[
+            {"name": "okta", "icon": "fa-okta"},
+            {"name": "entra_id", "icon": "fa-microsoft"},
+        ],
+    )
 
     payload = _get_bootstrap()
 
@@ -60,15 +62,15 @@ def test_bootstrap_saml_providers(app_context: None) -> None:
     assert providers[1] == {"name": "entra_id", "icon": "fa-microsoft"}
 
 
-def test_bootstrap_saml_provider_default_icon(app_context: None) -> None:
+def test_bootstrap_saml_provider_default_icon(
+    app_context: None, override_config: Callable[..., None]
+) -> None:
     """SAML providers without an icon get a default icon."""
-    from flask import current_app
-
-    current_app.config["AUTH_TYPE"] = AUTH_SAML
-    current_app.config["AUTH_USER_REGISTRATION"] = False
-    current_app.config["SAML_PROVIDERS"] = [
-        {"name": "onelogin"},
-    ]
+    override_config(
+        AUTH_TYPE=AUTH_SAML,
+        AUTH_USER_REGISTRATION=False,
+        SAML_PROVIDERS=[{"name": "onelogin"}],
+    )
 
     payload = _get_bootstrap()
 
@@ -76,15 +78,15 @@ def test_bootstrap_saml_provider_default_icon(app_context: None) -> None:
     assert providers[0] == {"name": "onelogin", "icon": "fa-sign-in"}
 
 
-def test_bootstrap_oauth_providers(app_context: None) -> None:
+def test_bootstrap_oauth_providers(
+    app_context: None, override_config: Callable[..., None]
+) -> None:
     """OAuth providers are included in bootstrap data."""
-    from flask import current_app
-
-    current_app.config["AUTH_TYPE"] = AUTH_OAUTH
-    current_app.config["AUTH_USER_REGISTRATION"] = False
-    current_app.config["OAUTH_PROVIDERS"] = [
-        {"name": "github", "icon": "fa-github"},
-    ]
+    override_config(
+        AUTH_TYPE=AUTH_OAUTH,
+        AUTH_USER_REGISTRATION=False,
+        OAUTH_PROVIDERS=[{"name": "github", "icon": "fa-github"}],
+    )
 
     payload = _get_bootstrap()
 
@@ -100,15 +102,18 @@ def test_bootstrap_oauth_providers(app_context: None) -> None:
 )
 def test_recaptcha_not_shown_for_external_auth(
     app_context: None,
+    override_config: Callable[..., None],
     auth_type: int,
 ) -> None:
     """Recaptcha should not be shown for LDAP, OAuth, or SAML auth types."""
-    from flask import current_app
-
-    current_app.config["AUTH_TYPE"] = auth_type
-    current_app.config["AUTH_USER_REGISTRATION"] = True
-    current_app.config["AUTH_USER_REGISTRATION_ROLE"] = "Public"
-    current_app.config["RECAPTCHA_PUBLIC_KEY"] = "test-key"
+    override_config(
+        AUTH_TYPE=auth_type,
+        AUTH_USER_REGISTRATION=True,
+        AUTH_USER_REGISTRATION_ROLE="Public",
+        RECAPTCHA_PUBLIC_KEY="test-key",
+        OAUTH_PROVIDERS=[],
+        SAML_PROVIDERS=[],
+    )
 
     payload = _get_bootstrap()
 
@@ -121,15 +126,16 @@ def test_recaptcha_not_shown_for_external_auth(
 )
 def test_recaptcha_shown_for_non_external_auth(
     app_context: None,
+    override_config: Callable[..., None],
     auth_type: int,
 ) -> None:
     """Recaptcha should be shown for DB and remote-user auth when registration is on."""
-    from flask import current_app
-
-    current_app.config["AUTH_TYPE"] = auth_type
-    current_app.config["AUTH_USER_REGISTRATION"] = True
-    current_app.config["AUTH_USER_REGISTRATION_ROLE"] = "Public"
-    current_app.config["RECAPTCHA_PUBLIC_KEY"] = "test-key"
+    override_config(
+        AUTH_TYPE=auth_type,
+        AUTH_USER_REGISTRATION=True,
+        AUTH_USER_REGISTRATION_ROLE="Public",
+        RECAPTCHA_PUBLIC_KEY="test-key",
+    )
 
     payload = _get_bootstrap()
 
@@ -138,13 +144,14 @@ def test_recaptcha_shown_for_non_external_auth(
 
 def test_recaptcha_not_shown_without_user_registration(
     app_context: None,
+    override_config: Callable[..., None],
 ) -> None:
     """Recaptcha should not be shown when user registration is disabled."""
-    from flask import current_app
-
-    current_app.config["AUTH_TYPE"] = AUTH_DB
-    current_app.config["AUTH_USER_REGISTRATION"] = False
-    current_app.config["RECAPTCHA_PUBLIC_KEY"] = "test-key"
+    override_config(
+        AUTH_TYPE=AUTH_DB,
+        AUTH_USER_REGISTRATION=False,
+        RECAPTCHA_PUBLIC_KEY="test-key",
+    )
 
     payload = _get_bootstrap()
 
@@ -154,14 +161,15 @@ def test_recaptcha_not_shown_without_user_registration(
 
 def test_ldap_auth_with_registration_role_still_set(
     app_context: None,
+    override_config: Callable[..., None],
 ) -> None:
     """AUTH_USER_REGISTRATION_ROLE is still set for LDAP even without recaptcha."""
-    from flask import current_app
-
-    current_app.config["AUTH_TYPE"] = AUTH_LDAP
-    current_app.config["AUTH_USER_REGISTRATION"] = True
-    current_app.config["AUTH_USER_REGISTRATION_ROLE"] = "Gamma"
-    current_app.config["RECAPTCHA_PUBLIC_KEY"] = "test-key"
+    override_config(
+        AUTH_TYPE=AUTH_LDAP,
+        AUTH_USER_REGISTRATION=True,
+        AUTH_USER_REGISTRATION_ROLE="Gamma",
+        RECAPTCHA_PUBLIC_KEY="test-key",
+    )
 
     payload = _get_bootstrap()
 
@@ -176,15 +184,17 @@ def test_ldap_auth_with_registration_role_still_set(
 )
 def test_bootstrap_does_not_crash_without_recaptcha_key(
     app_context: None,
+    override_config: Callable[..., None],
+    monkeypatch: pytest.MonkeyPatch,
     auth_type: int,
 ) -> None:
     """Missing RECAPTCHA_PUBLIC_KEY must not crash bootstrap (#37008/#39364)."""
-    from flask import current_app
-
-    current_app.config["AUTH_TYPE"] = auth_type
-    current_app.config["AUTH_USER_REGISTRATION"] = True
-    current_app.config["AUTH_USER_REGISTRATION_ROLE"] = "Public"
-    current_app.config.pop("RECAPTCHA_PUBLIC_KEY", None)
+    override_config(
+        AUTH_TYPE=auth_type,
+        AUTH_USER_REGISTRATION=True,
+        AUTH_USER_REGISTRATION_ROLE="Public",
+    )
+    monkeypatch.delitem(current_app.config, "RECAPTCHA_PUBLIC_KEY", raising=False)
 
     payload = _get_bootstrap()
 
