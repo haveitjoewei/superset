@@ -26,7 +26,7 @@ under the License.
 
 ## Background
 
-As of setuptools 81.0.0, the `pkg_resources` API is deprecated and will be removed. This affects several packages in the Python ecosystem.
+As of setuptools 81.0.0, the `pkg_resources` API has been removed from the setuptools distribution. This affects packages in the Python ecosystem that still import it.
 
 ## Current Status
 
@@ -39,26 +39,19 @@ The Superset codebase has already migrated away from `pkg_resources` to the mode
 
 ### Production Dependencies
 
-Some third-party dependencies may still use `pkg_resources`. Monitor your dependency tree for packages that haven't migrated yet.
+Superset's pinned dependency tree (`requirements/base.txt`) has been audited against a setuptools release without `pkg_resources`: no dependency performs an unguarded `import pkg_resources` (the remaining references are `try`/`except ImportError` fallbacks that prefer `importlib.metadata`). Superset therefore declares `setuptools>=81` with no upper bound in `requirements/base.in`.
+
+If you add a third-party dependency or install extra packages (for example database drivers or Superset extensions) that still import `pkg_resources`, they will fail to import. A quick way to audit an environment is:
+
+```bash
+rg -l "^\s*(import pkg_resources|from pkg_resources)" "$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+```
 
 ## Migration Path
 
-### Short-term Solution
+Update packages to use `importlib.metadata` instead of `pkg_resources`:
 
-Pin setuptools to version 80.x to prevent breaking changes:
-
-```python
-# requirements/base.in
-setuptools<81
-```
-
-This prevents the removal of `pkg_resources` while dependent packages are updated.
-
-### Long-term Solution
-
-Update all dependencies to use `importlib.metadata` instead of `pkg_resources`:
-
-#### Migration Example
+### Migration Example
 
 **Old (deprecated):**
 
@@ -83,13 +76,13 @@ eps = entry_points(group="group_name")
 ### For Superset Maintainers
 
 1. The Superset codebase already uses `importlib.metadata`
-2. Monitor third-party dependencies for updates
-3. Update setuptools pin once the ecosystem is ready
+2. When adding new dependencies, verify they do not import `pkg_resources` unconditionally
+3. Do not reintroduce an upper bound on setuptools; fix or replace the offending dependency instead
 
 ### For Extension Developers
 
 1. **Update your packages** to use `importlib.metadata` instead of `pkg_resources`
-2. **Test with setuptools >= 81.0.0** once all packages are migrated
+2. **Test with setuptools >= 81.0.0**, which is what Superset installs
 
 ## References
 
