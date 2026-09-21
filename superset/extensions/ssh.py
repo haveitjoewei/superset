@@ -46,6 +46,7 @@ if not hasattr(paramiko, "DSSKey"):
         its key-type table, so without this attribute every ``open_tunnel()`` call
         raises ``AttributeError``. DSA keys are not supported; any attempt to load
         one fails with ``SSHException``, which sshtunnel already handles.
+        TODO: remove together with the ``sshtunnel`` dependency, which is unmaintained.
         """
 
         def __init__(self, *args: object, **kwargs: object) -> None:

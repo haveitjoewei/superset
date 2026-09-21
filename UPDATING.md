@@ -24,6 +24,7 @@ assists people when migrating to a new version.
 
 ## Next
 
+- Superset now allows paramiko 4.x (lockfiles pin 4.0.0). paramiko 4 removed support for DSA (`ssh-dss`) keys, so SSH tunnels authenticating with a DSA private key will fail with `SSHException: DSA (ssh-dss) keys are not supported by paramiko >= 4.0`; migrate such keys to ed25519, ECDSA or RSA. Because the `sshtunnel` library still references `paramiko.DSSKey`, `superset.extensions.ssh` installs a placeholder `paramiko.DSSKey` at import time when it is missing; this only affects processes that import Superset.
 - With `SEMANTIC_LAYERS` enabled, combined connection discovery honors `Database.can_read` and `SemanticLayer.can_read` independently. Each permitted source retains its normal row filters, including dynamic database filters for Admin. A source filter never includes rows or counts from a denied source; callers with neither read permission are denied. Feature-off database browsing is unchanged.
 - The combined datasource list (`GET /api/v1/datasource/`) accepts Dataset read without an additional Datasource read grant, regardless of `SEMANTIC_LAYERS`. With the flag enabled, SemanticView read independently permits semantic-view discovery. Existing row-level dataset/chart access remains enforced.
 - The `presto` extra requires PyHive 0.7.0 or later. PyHive 0.6.5 cannot load
