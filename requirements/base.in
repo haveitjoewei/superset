@@ -36,10 +36,6 @@ pyopenssl>=26.0.0,<27.0.0
 # Security: CVE-2026-25645 (MEDIUM) - Insecure Temporary File
 requests>=2.33.0,<3.0.0
 
-# 5.0.0 has a sensitive deprecation used in other libs
-# -> https://github.com/aio-libs/async-timeout/blob/master/CHANGES.rst#500-2024-10-31
-async_timeout>=4.0.0,<5.0.0
-
 # The published OpenAPI spec (docs/static/resources/openapi.json) depends on the
 # resolved apispec version; regenerate it with `superset update-api-docs` when bumping.
 apispec>=6.7.0
