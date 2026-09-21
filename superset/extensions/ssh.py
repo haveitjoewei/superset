@@ -18,6 +18,7 @@
 import base64
 import binascii
 import logging
+import os
 import socket
 from io import StringIO
 from typing import TYPE_CHECKING
@@ -34,6 +35,44 @@ from paramiko import (
     SSHException,
 )
 from paramiko.pkey import UnknownKeyType
+
+if not hasattr(paramiko, "DSSKey"):
+
+    class _RemovedDSSKey(PKey):
+        """
+        Stand-in for ``paramiko.DSSKey``, removed in paramiko 4.0.
+
+        ``sshtunnel`` (<= 0.4.0) still references ``paramiko.DSSKey`` when building
+        its key-type table, so without this attribute every ``open_tunnel()`` call
+        raises ``AttributeError``. DSA keys are not supported; any attempt to load
+        one fails with ``SSHException``, which sshtunnel already handles.
+        TODO: remove together with the ``sshtunnel`` dependency, which is unmaintained.
+        """
+
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            raise SSHException(
+                "DSA (ssh-dss) keys are not supported by paramiko >= 4.0"
+            )
+
+        @classmethod
+        def from_private_key_file(
+            cls,
+            filename: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            password: str | None = None,
+        ) -> "_RemovedDSSKey":
+            raise SSHException(
+                "DSA (ssh-dss) keys are not supported by paramiko >= 4.0"
+            )
+
+        @classmethod
+        def from_private_key(
+            cls, file_obj: object, password: str | None = None
+        ) -> "_RemovedDSSKey":
+            raise SSHException(
+                "DSA (ssh-dss) keys are not supported by paramiko >= 4.0"
+            )
+
+    paramiko.DSSKey = _RemovedDSSKey  # type: ignore[attr-defined]
 
 from superset.commands.database.ssh_tunnel.exceptions import (
     SSHTunnelDatabasePortError,

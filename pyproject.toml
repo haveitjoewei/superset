@@ -92,7 +92,7 @@ dependencies = [
     "bottleneck", # recommended performance dependency for pandas, see https://pandas.pydata.org/docs/getting_started/install.html#performance-dependencies-recommended
     # --------------------------
     "parsedatetime",
-    "paramiko>=3.4.0, <4.0", # 4.0 removed DSSKey, still referenced by sshtunnel
+    "paramiko>=3.4.0, <5.0", # 4.x removed DSSKey; see superset/extensions/ssh.py for the sshtunnel compat shim
     "pgsanity",
     "Pillow>=12.3.0, <13", # raise floor to match resolved pin; closes SCA false-positive on 11.x-range CVEs already fixed in 12.3.0
     "polyline>=2.0.4, <3.0",
@@ -108,7 +108,7 @@ dependencies = [
     "rison>=2.0.1, <3.0",
 
     "shillelagh[gsheetsapi]>=1.4.5, <2.0",
-    "sshtunnel>=0.4.0, <0.5",
+    "sshtunnel>=0.4.0, <0.5", # TODO: replace; unmaintained (last release 2021) and needs the DSSKey shim in superset/extensions/ssh.py for paramiko>=4
     "simplejson>=4.1.2",
     "slack_sdk>=3.44.0, <4",
     "sqlalchemy>=2.0.52, <2.1",
@@ -578,7 +578,7 @@ numpy = "2"
 # --------------------------------------------------------------
 
 # TODO REMOVE THESE DEPS FROM CODEBASE
-paramiko = "3"  # GPL
+paramiko = ">=3"  # GPL
 pyxlsb = "1"  # GPL
 
 [tool.uv.sources]
