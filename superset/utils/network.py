@@ -89,9 +89,16 @@ def is_safe_host(host: str) -> bool:
 def is_port_open(host: str, port: int) -> bool:
     """
     Test if a given port in a host is open.
+
+    An unresolvable host returns False rather than raising.
     """
     # pylint: disable=invalid-name
-    for res in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+    try:
+        results = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
+    except (socket.gaierror, UnicodeError):
+        return False
+
+    for res in results:
         af, _, _, _, sockaddr = res
         s = socket.socket(af, socket.SOCK_STREAM)
         try:
