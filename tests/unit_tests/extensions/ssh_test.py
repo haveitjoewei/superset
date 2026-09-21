@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import paramiko
@@ -99,6 +100,20 @@ def test_ssh_tunnel_timeout_setting() -> None:
     factory.init_app(app)
     assert sshtunnel.TUNNEL_TIMEOUT == 123.0
     assert sshtunnel.SSH_TIMEOUT == 321.0
+
+
+def test_dsskey_shim_keeps_sshtunnel_working(tmp_path: Path) -> None:
+    assert hasattr(paramiko, "DSSKey")
+    assert (
+        sshtunnel.SSHTunnelForwarder.get_keys(
+            host_pkey_directories=[str(tmp_path)], allow_agent=False
+        )
+        == []
+    )
+
+    if paramiko.DSSKey.__name__ == "_RemovedDSSKey":
+        with pytest.raises(paramiko.SSHException):
+            paramiko.DSSKey.from_private_key_file("x")
 
 
 def _make_ed25519_pem() -> str:
