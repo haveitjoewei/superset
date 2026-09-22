@@ -482,6 +482,17 @@ class PrestoBaseEngineSpec(BaseEngineSpec, metaclass=ABCMeta):
         """
         return database.get_df("SHOW FUNCTIONS")["Function"].tolist()
 
+    @staticmethod
+    def _quote_partition_identifier(identifier: str) -> str:
+        """
+        Quote an identifier for use in a partition query.
+
+        Presto and Trino delimit identifiers with double quotes; embedded double
+        quotes are escaped by doubling them.
+        """
+        escaped = str(identifier).replace('"', '""')
+        return f'"{escaped}"'
+
     @classmethod
     def _partition_query(  # pylint: disable=too-many-arguments,too-many-locals,unused-argument
         cls,
@@ -507,12 +518,13 @@ class PrestoBaseEngineSpec(BaseEngineSpec, metaclass=ABCMeta):
             order
         :param filters: dict of field name and filter value combinations
         """
-        limit_clause = f"LIMIT {limit}" if limit else ""
+        limit_clause = f"LIMIT {int(limit)}" if limit else ""
         order_by_clause = ""
         if order_by:
             l = []  # noqa: E741
             for field, desc in order_by:
-                l.append(field + " DESC" if desc else "")
+                quoted_field = cls._quote_partition_identifier(field)
+                l.append(quoted_field + " DESC" if desc else quoted_field)
             order_by_clause = "ORDER BY " + ", ".join(l)
 
         where_clause = ""
@@ -522,23 +534,30 @@ class PrestoBaseEngineSpec(BaseEngineSpec, metaclass=ABCMeta):
                 # Escape single quotes so a ``'`` in the caller-supplied value
                 # cannot break out of the SQL string literal. See #41869.
                 escaped_value: str = str(value).replace("'", "''")
-                l.append(f"{field} = '{escaped_value}'")
+                quoted_field = cls._quote_partition_identifier(field)
+                l.append(f"{quoted_field} = '{escaped_value}'")
             where_clause = "WHERE " + " AND ".join(l)
 
         # Partition select syntax changed in v0.199, so check here.
         # Default to the new syntax if version is unset.
         presto_version = database.get_extra().get("version")
 
+        quoted_schema = (
+            cls._quote_partition_identifier(table.schema) if table.schema else None
+        )
         if presto_version and Version(presto_version) < Version("0.199"):
+            quoted_table = cls._quote_partition_identifier(table.table)
             full_table_name = (
-                f"{table.schema}.{table.table}" if table.schema else table.table
+                f"{quoted_schema}.{quoted_table}" if quoted_schema else quoted_table
             )
             partition_select_clause = f"SHOW PARTITIONS FROM {full_table_name}"
         else:
-            system_table_name = f'"{table.table}$partitions"'
+            system_table_name = cls._quote_partition_identifier(
+                f"{table.table}$partitions"
+            )
             full_table_name = (
-                f"{table.schema}.{system_table_name}"
-                if table.schema
+                f"{quoted_schema}.{system_table_name}"
+                if quoted_schema
                 else system_table_name
             )
             partition_select_clause = f"SELECT * FROM {full_table_name}"  # noqa: S608
